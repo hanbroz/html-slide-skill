@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[문서 제목]</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.8/dist/mermaid.min.js"
+  integrity="sha384-N3QqR/7q+xm3BGX+CBbNI8AUmRRqcsDzToy+0z1NLDI0QmTKW8zvwLvqulJgk3dP"
+  crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css"
+  integrity="sha384-w6Ujm1VWa9HYFqGc89oAPn/DWDi2gUamjNrq9DRvEYm2X3ClItg9Y9xs1ViVo5b5"
+  crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+  integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
+  crossorigin="anonymous"></script>
+<style>
+  /* ---- 라이트 테마 고정 토큰 (다크모드 없음) ---- */
+  :root{
+    --bg:#ffffff; --bg-soft:#f5f6f8; --ink:#14181f; --ink-soft:#4b5563;
+    --line:#e3e6ea; --accent:#1f4fd8; --accent-soft:#eaf0ff;
+    --chapter-bg:#0f1b3d; --chapter-ink:#ffffff; --chapter-accent:#7ea2ff;
+    --radius:12px; --shadow:0 4px 20px rgba(20,24,31,.08);
+    --font-ui:"Pretendard","Segoe UI",system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:var(--font-ui);word-break:keep-all;overflow:hidden}
+
+  .deck{position:relative;width:100%;height:100vh}
+  .slide{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    padding:64px 88px;overflow-y:auto;
+    opacity:0;pointer-events:none;z-index:0;
+  }
+  /* opacity(레이아웃 유지)로 숨김: display:none을 쓰면 숨은 슬라이드의
+     mermaid가 크기를 잴 수 없어 "translate(undefined, NaN)"로 깨짐 */
+  .slide.active{opacity:1;pointer-events:auto;z-index:1}
+
+  /* 표지 / 결론 요약 (두괄식) */
+  .slide--cover{justify-content:center;gap:20px}
+  .slide--cover .kicker{color:var(--accent);font-weight:700;letter-spacing:.04em}
+  .slide--cover h1{font-size:42px;margin:0;line-height:1.3}
+  .slide--cover .conclusion{
+    margin-top:12px;padding:24px 28px;background:var(--accent-soft);
+    border-left:4px solid var(--accent);border-radius:8px;font-size:19px;line-height:1.6
+  }
+
+  /* 챕터 표지: 배경 다르게 + 챕터 요약 */
+  .slide--chapter{
+    background:var(--chapter-bg);color:var(--chapter-ink);
+    justify-content:center;gap:16px;
+  }
+  .slide--chapter .chapter-no{color:var(--chapter-accent);font-weight:700}
+  .slide--chapter h2{font-size:38px;margin:0}
+  .slide--chapter ul{color:#c7d2f5;font-size:17px;line-height:1.8}
+
+  h2.section-title{font-size:26px;margin:0 0 24px}
+
+  /* 표 */
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+  table{border-collapse:collapse;width:100%;min-width:560px}
+  th,td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+  th{background:var(--bg-soft);font-weight:700}
+
+  /* mermaid 다이어그램 + 전체화면 */
+  .diagram-card{border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px;background:var(--bg-soft);position:relative}
+  .diagram-card .mermaid{background:transparent}
+  .btn-fullscreen{
+    position:absolute;top:14px;right:14px;border:1px solid var(--line);
+    background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;
+    cursor:pointer;box-shadow:var(--shadow)
+  }
+  .diagram-modal{
+    display:none;position:fixed;inset:0;background:rgba(15,18,25,.72);
+    z-index:50;align-items:center;justify-content:center;padding:40px
+  }
+  .diagram-modal.open{display:flex}
+  .diagram-modal .modal-inner{
+    background:#fff;border-radius:16px;padding:32px;max-width:96vw;
+    max-height:92vh;overflow:auto;position:relative
+  }
+  .diagram-modal .modal-close{
+    position:absolute;top:14px;right:18px;border:none;background:none;
+    font-size:22px;cursor:pointer;color:var(--ink-soft)
+  }
+
+  /* 코드 하이라이트 */
+  .code-card{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}
+  .code-card .code-label{
+    background:var(--bg-soft);padding:8px 16px;font-size:12px;
+    color:var(--ink-soft);border-bottom:1px solid var(--line)
+  }
+  pre{margin:0;padding:18px;overflow-x:auto;font-family:var(--font-mono);font-size:13.5px}
+
+  /* 출처 / 참고자료 */
+  .ref-list{font-size:14px;line-height:2;color:var(--ink-soft)}
+  .ref-list a{color:var(--accent)}
+
+  /* 네비게이션 */
+  .nav{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:14px;background:#fff;
+    border:1px solid var(--line);border-radius:999px;padding:8px 18px;
+    box-shadow:var(--shadow);font-size:13px;z-index:40
+  }
+  .nav button{border:none;background:none;cursor:pointer;font-size:14px;color:var(--ink)}
+  .nav button:disabled{opacity:.3;cursor:default}
+  .progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);z-index:40;transition:width .2s}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+  <!-- 1. 표지: 두괄식 결론 요약 -->
+  <section class="slide slide--cover active">
+    <div class="kicker">[프로젝트/보고서 구분]</div>
+    <h1>[문서 제목을 한 문장으로]</h1>
+    <div class="conclusion">
+      <strong>결론:</strong> [핵심 결론과 권고안을 여기 한 문단으로 압축. 독자가 이 슬라이드만 봐도
+      의사결정에 필요한 결론을 파악할 수 있어야 함]
+    </div>
+  </section>
+
+  <!-- 2. 챕터 표지 예시: 배경 다르게 + 챕터 요약 -->
+  <section class="slide slide--chapter">
+    <div class="chapter-no">Chapter 1</div>
+    <h2>[챕터 제목]</h2>
+    <ul>
+      <li>[이 챕터에서 다루는 내용 요약 1]</li>
+      <li>[이 챕터에서 다루는 내용 요약 2]</li>
+    </ul>
+  </section>
+
+  <!-- 3. 표 예시 -->
+  <section class="slide">
+    <h2 class="section-title">[본문 슬라이드 제목]</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>현재</th><th>목표</th></tr></thead>
+        <tbody>
+          <tr><td>예시 항목 1</td><td>값</td><td>값</td></tr>
+          <tr><td>예시 항목 2</td><td>값</td><td>값</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 4. mermaid 다이어그램 + 전체화면 버튼 -->
+  <section class="slide">
+    <h2 class="section-title">[프로세스/아키텍처 다이어그램]</h2>
+    <div class="diagram-card">
+      <button class="btn-fullscreen" data-target="diagram-1">전체화면</button>
+      <div class="mermaid" id="diagram-1">
+flowchart LR
+  A[요청] --> B{검증}
+  B -- 통과 --> C[처리]
+  B -- 실패 --> D[반려]
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 코드/CLI 하이라이트 예시 -->
+  <section class="slide">
+    <h2 class="section-title">[설정/실행 예시]</h2>
+    <div class="code-card">
+      <div class="code-label">bash</div>
+      <pre><code class="language-bash">npm install
+npm run build</code></pre>
+    </div>
+  </section>
+
+  <!-- 6. 출처 -->
+  <section class="slide">
+    <h2 class="section-title">출처</h2>
+    <div class="ref-list">
+      1. [자료명], [발행처/저자], <a href="https://example.com" target="_blank">https://example.com</a><br>
+      2. [사내 문서명] (내부 자료)
+    </div>
+  </section>
+
+  <!-- 7. 참고자료 -->
+  <section class="slide">
+    <h2 class="section-title">참고자료</h2>
+    <div class="ref-list">
+      1. [본문에 직접 인용하지 않았지만 배경지식으로 도움이 되는 자료/용어]<br>
+      2. [관련 개념 링크] — <a href="https://example.com" target="_blank">https://example.com</a>
+    </div>
+  </section>
+
+</div>
+
+<!-- mermaid 전체화면 모달 -->
+<div class="diagram-modal" id="diagramModal">
+  <div class="modal-inner">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div id="modalDiagramHost"></div>
+  </div>
+</div>
+
+<div class="nav">
+  <button id="prevBtn">◀ 이전</button>
+  <span id="counter">1 / 1</span>
+  <button id="nextBtn">다음 ▶</button>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "default" });
+  hljs.highlightAll();
+
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  let idx = 0;
+  const counter = document.getElementById("counter");
+  const progress = document.getElementById("progress");
+
+  function render(){
+    slides.forEach((s,i)=>s.classList.toggle("active", i===idx));
+    counter.textContent = `${idx+1} / ${slides.length}`;
+    progress.style.width = `${((idx+1)/slides.length)*100}%`;
+    document.getElementById("prevBtn").disabled = idx===0;
+    document.getElementById("nextBtn").disabled = idx===slides.length-1;
+  }
+  function go(delta){
+    idx = Math.min(slides.length-1, Math.max(0, idx+delta));
+    render();
+  }
+  document.getElementById("prevBtn").onclick = ()=>go(-1);
+  document.getElementById("nextBtn").onclick = ()=>go(1);
+  window.addEventListener("keydown", e=>{
+    if(["ArrowRight","PageDown"," "].includes(e.key)) go(1);
+    if(["ArrowLeft","PageUp"].includes(e.key)) go(-1);
+    if(e.key==="Home") { idx=0; render(); }
+    if(e.key==="End") { idx=slides.length-1; render(); }
+  });
+
+  // 다이어그램 전체화면: 원본 mermaid SVG를 모달로 복제
+  const modal = document.getElementById("diagramModal");
+  const modalHost = document.getElementById("modalDiagramHost");
+  document.querySelectorAll(".btn-fullscreen").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const target = document.getElementById(btn.dataset.target);
+      const svg = target.querySelector("svg");
+      modalHost.innerHTML = "";
+      if(svg){
+        const clone = svg.cloneNode(true);
+        // mermaid가 svg에 style="max-width:XXXpx"를 박아두므로 그것부터 지워야
+        // 전체화면에서 커진다
+        clone.style.maxWidth = "none";
+        clone.style.width = "80vw";
+        clone.style.height = "auto";
+        modalHost.appendChild(clone);
+      }
+      modal.classList.add("open");
+    });
+  });
+  document.getElementById("modalClose").onclick = ()=>modal.classList.remove("open");
+  modal.addEventListener("click", e=>{ if(e.target===modal) modal.classList.remove("open"); });
+
+  render();
+</script>
+</body>
+</html>
