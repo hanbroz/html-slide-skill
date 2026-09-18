@@ -29,6 +29,7 @@ description: Use when asked to turn a decision-making report, technical manual, 
 9. **UI는 비즈니스 톤의 taste skill 원칙을 적용.** 로컬에 `design-taste-frontend` 스킬이 설치돼 있으면 그것을 로드해 팔레트·타이포·여백 원칙을 따른다(이것이 tasteskill.dev가 요구하는 "깔끔한 비즈니스 UI"의 로컬 대응물). 설치돼 있지 않으면 이 스킬의 기본 팔레트(`assets/template.html`의 CSS 토큰)를 그대로 쓴다.
 10. **완성 후 3-에이전트 이상 리뷰, 그중 최소 1개는 Red Team.** 아래 "완성 후 검증" 참고.
 11. **폰트.** Noto를 기본으로 사용하고 Taste Skill이 다른 폰트를 제안하는 경우 변경
+12. **페이지이동**. 새로고침 해도 현재 보고 있는 페이지를 유지하며 페이지에 앞/뒤로 이동하는 버튼도 있지만 번호를 입력해서 바로 이동할 수 있도록 합니다. 만약 번호가 전체 페이지 크기보다 크면 마지막 페이지로 이동합니다.
 
 ## Building the deck
 
