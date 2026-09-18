@@ -28,6 +28,7 @@ description: Use when asked to turn a decision-making report, technical manual, 
 8. **마지막 슬라이드 2장: 출처 → 참고자료.** "출처"는 본문에서 실제로 인용한 근거(웹 자료는 URL 필수). "참고자료"는 본문에 직접 인용하진 않았지만 이해에 도움되는 배경 자료/용어.
 9. **UI는 비즈니스 톤의 taste skill 원칙을 적용.** 로컬에 `design-taste-frontend` 스킬이 설치돼 있으면 그것을 로드해 팔레트·타이포·여백 원칙을 따른다(이것이 tasteskill.dev가 요구하는 "깔끔한 비즈니스 UI"의 로컬 대응물). 설치돼 있지 않으면 이 스킬의 기본 팔레트(`assets/template.html`의 CSS 토큰)를 그대로 쓴다.
 10. **완성 후 3-에이전트 이상 리뷰, 그중 최소 1개는 Red Team.** 아래 "완성 후 검증" 참고.
+11. **폰트.** Noto를 기본으로 사용하고 Taste Skill이 다른 폰트를 제안하는 경우 변경
 
 ## Building the deck
 
