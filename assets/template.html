@@ -17,6 +17,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
   integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
   crossorigin="anonymous"></script>
+<!-- 공용 번들에는 Windows 명령(cmd)·PowerShell이 없어 따로 불러온다.
+     없으면 language-dos / language-powershell 블록이 조용히 무색으로 렌더된다. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dos.min.js"
+  integrity="sha384-6+/BHm9a7L7KFZE/myAKBddEjwfPovVtBzDrEu/6VqocfSqvRMyM+Lf3k9n89yGH"
+  crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"
+  integrity="sha384-LWJZQx0dgGhEK7snfNYrQs5K+QKD1sOmE02sOQCz4br9UmqSJDvPLoUVFaUyFnjq"
+  crossorigin="anonymous"></script>
 <style>
   /* =========================================================
      디자인 토큰 — references/design-system.md 와 값이 같아야 한다.
@@ -47,10 +55,14 @@
   html,body{margin:0;height:100%;overflow:hidden;background:#DDE3EA}
 
   /* 1920x1080 고정 캔버스를 창 크기에 맞춰 확대·축소한다.
-     모든 px 값은 1920 기준이므로 가이드 수치를 그대로 쓴다. */
+     모든 px 값은 1920 기준이므로 가이드 수치를 그대로 쓴다.
+     최소 글자 규칙: 화면에 보이는 글자는 9pt(=12 CSS px) 이하가 되면 안 된다.
+     캔버스 최소 글자가 24px이므로 배율은 0.55(24px → 13.2px) 아래로 내리지 않고,
+     창이 더 작으면 스크롤한다. (브라우저 확대/축소 100% 기준) */
   /* 아래 64px는 탐색 막대 자리 — 슬라이드와 겹치지 않는다 */
-  .viewport{position:fixed;left:0;right:0;top:0;bottom:64px;display:flex;align-items:center;justify-content:center}
-  .stage{width:1920px;height:1080px;flex:none;position:relative;overflow:hidden;transform-origin:center center}
+  .viewport{position:fixed;left:0;right:0;top:0;bottom:64px;display:flex;overflow:auto}
+  .stage-box{margin:auto;flex:none;position:relative}
+  .stage{width:1920px;height:1080px;position:absolute;left:0;top:0;overflow:hidden;transform-origin:0 0}
 
   /* opacity로 숨긴다: display:none이면 숨은 슬라이드의 mermaid가
      크기를 재지 못해 "translate(undefined, NaN)"로 깨진다 */
@@ -104,6 +116,7 @@
   .chapter-no{font-family:var(--font-head);font-size:320px;font-weight:200;line-height:1;letter-spacing:-8px;color:var(--accent-dark)}
   .chapter-body{display:flex;flex-direction:column;gap:48px}
   .chapter-kicker{font-size:var(--fs-label);font-weight:600;letter-spacing:3px;color:var(--on-dark-2)}
+  .chapter-lead{color:var(--on-dark);max-width:1000px}
   .chapter-list{list-style:none;padding:0}
   .chapter-list li{padding:20px 0;border-top:1px solid var(--navy-2);color:var(--on-dark-2)}
   .chapter-list li:last-child{border-bottom:1px solid var(--navy-2)}
@@ -177,8 +190,8 @@
   table.data{width:100%;border-collapse:collapse;border:1px solid var(--line);font-size:var(--fs-body);line-height:1.4}
   table.data th,table.data td{padding:16px 24px;border:1px solid var(--line);text-align:left;vertical-align:top}
   table.data thead th{background:var(--bg-2);font-weight:600}
-  table.data--compact{font-size:26px}
-  table.data--compact th,table.data--compact td{padding:14px 22px}
+  table.data--compact{font-size:var(--fs-label)}
+  table.data--compact th,table.data--compact td{padding:12px 20px}
 
   /* ---------- 두 칸 비교 ---------- */
   .compare{display:flex;gap:80px}
@@ -211,16 +224,23 @@
   /* ---------- 코드 블록 (highlight.js) ---------- */
   .code-card{background:var(--card);border:1px solid var(--line)}
   .code-label{font-size:var(--fs-label);color:var(--ink-3);background:var(--bg-2);padding:14px 32px;border-bottom:1px solid var(--line)}
-  .code-card pre{margin:0;padding:32px;font-family:var(--font-mono);font-size:var(--fs-body);line-height:1.6;white-space:pre-wrap}
+  .code-card pre,.code-card code{font-family:var(--font-mono)}
+  .code-card pre{margin:0;padding:32px;font-size:var(--fs-body);line-height:1.6;white-space:pre-wrap}
   .code-card .hljs{background:transparent;padding:0}
 
   /* ---------- 출처 · 참고자료 ---------- */
   .refs{list-style:none;padding:0}
   .refs li{display:flex;gap:32px;padding:18px 0;border-top:1px solid var(--line);font-size:var(--fs-label);line-height:1.5;color:var(--ink-2)}
   .refs li:last-child{border-bottom:1px solid var(--line)}
-  .refs .ref-no{font-family:var(--font-mono);color:var(--accent);width:48px;flex:none}
+  .refs .ref-no{font-family:var(--font-mono);color:var(--accent);width:64px;flex:none}
   .refs b{color:var(--ink)}
   .refs a{color:var(--accent);word-break:break-all}
+  /* 본문 속 출처 번호 — 글자 크기는 본문과 같게(작게 만들지 않는다) */
+  .cite{color:var(--ink-3);font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+  .cite:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .refs li.ref-hit{outline:3px solid var(--accent);outline-offset:4px}
+  .cite:hover{color:var(--accent)}
+  .slide--dark .cite{color:var(--on-dark-2)}
 
   /* ---------- 탐색 (슬라이드 밖 UI) ---------- */
   .progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);z-index:40;transition:width .2s}
@@ -242,7 +262,7 @@
 <body>
 
 <div class="progress" id="progress"></div>
-<div class="viewport"><div class="stage" id="stage">
+<div class="viewport"><div class="stage-box" id="stageBox"><div class="stage" id="stage">
 
   <!-- 1. 표지 (두괄식): 결론 한 문단 -->
   <section class="slide slide--dark slide--cover active">
@@ -263,8 +283,8 @@
 
   <!-- 2. 번호 3단 요약 -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">요약</p><h2 class="title">[핵심을 한 문장으로]</h2></div>
-    <p class="lead">[두 줄 이내의 배경 설명. 아래 세 가지가 무엇의 목록인지 말해 준다.]</p>
+    <div class="head"><p class="eyebrow">요약</p><h2 class="title">[덱 전체의 결론 한 문장]</h2></div>
+    <p class="lead">[결론을 뒷받침하는 근거 두 줄 이내. 사실·수치에는 출처 번호를 붙인다.] <a class="cite" href="#ref-1" data-ref="1">[1]</a></p>
     <div class="fill"></div>
     <div class="num-grid">
       <div class="num-item"><p class="num">01</p><h3>[항목]</h3><p>[한두 줄 설명]</p></div>
@@ -276,7 +296,7 @@
 
   <!-- 3. 키-값 행 + 콜아웃 -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">[챕터 번호 · 챕터명]</p><h2 class="title">[슬라이드 제목]</h2></div>
+    <div class="head"><p class="eyebrow">[챕터 번호 · 챕터명]</p><h2 class="title">[이 슬라이드의 결론 한 문장]</h2></div>
     <div class="rows">
       <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val">[볼 곳]</p></div>
       <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val is-key">[강조할 한 행]</p></div>
@@ -293,6 +313,7 @@
     <p class="chapter-no">01</p>
     <div class="chapter-body">
       <div class="head"><p class="chapter-kicker">CHAPTER 01</p><h2 class="title">[챕터 제목]</h2></div>
+      <p class="chapter-lead">[이 챕터의 결론 한 문장 — 목록보다 먼저]</p>
       <ul class="chapter-list">
         <li>[이 챕터에서 다루는 내용 1]</li>
         <li>[이 챕터에서 다루는 내용 2]</li>
@@ -303,7 +324,7 @@
 
   <!-- 5. 흐름 (4단계까지) + 의미 한 줄 -->
   <section class="slide slide--spread">
-    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[흐름이 보여 주는 것]</h2></div>
+    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[이 흐름의 결론 한 문장]</h2></div>
     <div class="flow">
       <div class="flow-node"><p class="eyebrow">01 [동사]</p><h3>[주체]</h3><p>[한 줄 설명]</p></div>
       <div class="flow-arrow"></div>
@@ -319,7 +340,7 @@
 
   <!-- 6. 카드 3장 비교 (핵심 카드 하나만 강조) -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[구성 요소 세 가지]</h2></div>
+    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[비교의 결론 한 문장]</h2></div>
     <div class="cards">
       <div class="card"><p class="card-tag">[tag]</p><h3>[이름]</h3><p class="card-desc">[역할 두 줄 이내]</p><p class="card-foot">[라벨]</p><p>[결과 두 줄 이내]</p></div>
       <div class="card"><p class="card-tag">[tag]</p><h3>[이름]</h3><p class="card-desc">[역할 두 줄 이내]</p><p class="card-foot">[라벨]</p><p>[결과 두 줄 이내]</p></div>
@@ -330,7 +351,7 @@
 
   <!-- 7. 번호 단계 (6단계까지) + 주의 -->
   <section class="slide slide--spread">
-    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[절차 이름]</h2></div>
+    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[이 절차의 결론 한 문장]</h2></div>
     <div class="steps">
       <div class="step"><p class="step-no">01</p><h3>[단계]</h3><p>[한두 줄]</p></div>
       <div class="step"><p class="step-no">02</p><h3>[단계]</h3><p>[한두 줄]</p></div>
@@ -345,7 +366,7 @@
 
   <!-- 8. 코드 패널 + 설명 세 개 -->
   <section class="slide slide--spread">
-    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[확인 방법]</h2></div>
+    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[확인 방법의 결론 한 문장]</h2></div>
     <div class="split">
       <div class="code-panel">
         <p class="code-panel-label">[어디에 보이는 값인가]</p>
@@ -363,7 +384,7 @@
 
   <!-- 9. 표 + 참고 -->
   <section class="slide slide--spread">
-    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[표가 답하는 질문]</h2></div>
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[표에서 읽을 결론 한 문장]</h2></div>
     <table class="data">
       <thead><tr><th style="width:24%">[기준]</th><th style="width:30%">[정상]</th><th style="width:46%">[이상하면]</th></tr></thead>
       <tbody>
@@ -379,7 +400,7 @@
 
   <!-- 10. Mermaid 다이어그램 + 전체화면 -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[다이어그램이 보여 주는 것]</h2></div>
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[다이어그램의 결론 한 문장]</h2></div>
     <div class="diagram-card">
       <button class="btn-fullscreen" data-target="diagram-1">전체화면</button>
       <div class="mermaid" id="diagram-1">
@@ -394,12 +415,16 @@ flowchart LR
 
   <!-- 11. 코드 / CLI (highlight.js) -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[실행 방법]</h2></div>
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[실행 방법의 결론 한 문장]</h2></div>
     <p class="lead">[어디서, 언제 실행하는지 한 줄]</p>
     <div class="code-card">
-      <div class="code-label">[명령 프롬프트 — 소스 폴더에서 실행]</div>
+      <div class="code-label">[터미널(bash) — 소스 폴더에서 실행]</div>
       <pre><code class="language-bash">npm install
 npm run build</code></pre>
+    </div>
+    <div class="code-card">
+      <div class="code-label">[PowerShell — 모든 코드 블록에 language-xxx 클래스를 붙인다]</div>
+      <pre><code class="language-powershell">Get-ChildItem -Path "C:\ProgramData" -Filter *.db</code></pre>
     </div>
     <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
@@ -413,7 +438,7 @@ npm run build</code></pre>
 
   <!-- 13. 두 칸 비교 -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[나누는 기준]</h2></div>
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[나누는 기준의 결론 한 문장]</h2></div>
     <div class="compare">
       <div class="compare-col compare-col--primary">
         <p class="compare-head">[직접 합니다]</p>
@@ -431,7 +456,7 @@ npm run build</code></pre>
 
   <!-- 14. 한 장 요약 (8칸까지) -->
   <section class="slide">
-    <div class="head"><p class="eyebrow">요약</p><h2 class="title">한 장 요약</h2></div>
+    <div class="head"><p class="eyebrow">한 장 요약</p><h2 class="title">[덱 전체의 결론을 다시 한 문장으로]</h2></div>
     <div class="recap">
       <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
       <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
@@ -447,8 +472,8 @@ npm run build</code></pre>
   <section class="slide">
     <div class="head"><p class="eyebrow">부록</p><h2 class="title">출처</h2></div>
     <ul class="refs">
-      <li><span class="ref-no">01</span><span><b>[근거가 된 주장]</b> — [자료명], [발행처], <a href="https://example.com" target="_blank">https://example.com</a></span></li>
-      <li><span class="ref-no">02</span><span><b>[근거가 된 주장]</b> — [사내 문서명 또는 파일 경로] (내부 자료)</span></li>
+      <li id="ref-1"><span class="ref-no">[1]</span><span><b>[근거가 된 주장]</b> — [자료명], [발행처], <a href="https://example.com/full/path" target="_blank">https://example.com/full/path</a> (확인일 [YYYY-MM-DD])</span></li>
+      <li id="ref-2"><span class="ref-no">[2]</span><span><b>[근거가 된 주장]</b> — [사내 문서명], [파일 경로 또는 시스템 화면 이름] (내부 자료)</span></li>
     </ul>
     <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
@@ -463,7 +488,7 @@ npm run build</code></pre>
     <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-</div></div>
+</div></div></div>
 
 <!-- mermaid 전체화면 모달 -->
 <div class="diagram-modal" id="diagramModal">
@@ -484,31 +509,33 @@ npm run build</code></pre>
 </nav>
 
 <script>
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: "base",
-    themeVariables: {
-      fontFamily: '"Noto Sans KR", sans-serif', fontSize: "24px",
-      primaryColor: "#FCFDFE", primaryBorderColor: "#0B1B2E", primaryTextColor: "#0B1B2E",
-      lineColor: "#0B1B2E", secondaryColor: "#EEF1F5", tertiaryColor: "#F4F6F9"
-    }
-  });
-  hljs.highlightAll();
+  /* 탐색·배율 코드를 먼저 실행한다. CDN(Mermaid, highlight.js)이 막혀도
+     슬라이드 이동과 새로고침 유지는 동작해야 한다. */
 
-  // 1920x1080 캔버스를 창에 맞춘다
+  // ---------- 1920x1080 캔버스를 창에 맞춘다 ----------
+  // 화면 글자는 9pt(12px) "이하"가 되면 안 된다 → 캔버스 최소 글자 24px x 0.55 = 13.2px.
+  const MIN_SCALE = 0.55;          // 이 값을 낮추지 않는다. 더 작은 창에서는 스크롤한다
+  const MIN_CANVAS_FONT = 24;      // 캔버스 기준 최소 글자
   const stage = document.getElementById("stage");
+  const stageBox = document.getElementById("stageBox");
   const viewport = document.querySelector(".viewport");
+  let scale = 1;
   function fit(){
-    const s = Math.min(viewport.clientWidth / 1920, viewport.clientHeight / 1080);
-    stage.style.transform = `scale(${s})`;
+    scale = Math.max(MIN_SCALE, Math.min(viewport.clientWidth / 1920, viewport.clientHeight / 1080));
+    stage.style.transform = `scale(${scale})`;
+    stageBox.style.width = `${1920 * scale}px`;
+    stageBox.style.height = `${1080 * scale}px`;
   }
   window.addEventListener("resize", fit);
   fit();
+  const isScrolling = () => viewport.scrollWidth > viewport.clientWidth || viewport.scrollHeight > viewport.clientHeight;
 
+  // ---------- 슬라이드 이동 ----------
   const slides = Array.from(document.querySelectorAll(".slide"));
   const total = slides.length;
   const input = document.getElementById("pageInput");
   const progress = document.getElementById("progress");
+  const modal = document.getElementById("diagramModal");
   document.getElementById("pageTotal").textContent = `/ ${total}`;
   input.max = total;
 
@@ -525,7 +552,7 @@ npm run build</code></pre>
   const storeKey = "slide-page:" + location.pathname;
   function savePage(n){ try { localStorage.setItem(storeKey, String(n)); } catch (e) {} }
   function loadPage(){
-    const m = location.hash.match(/^#\/?(\d+)/);
+    const m = location.hash.match(/^#\/?(\d+)$/);
     if (m) return clamp(parseInt(m[1], 10));
     try { const v = parseInt(localStorage.getItem(storeKey), 10); if (v) return clamp(v); } catch (e) {}
     return 1;
@@ -553,19 +580,99 @@ npm run build</code></pre>
     show(clamp(parseInt(input.value, 10)) - 1);
     input.blur();
   });
+  // 브라우저 뒤로/앞으로(출처로 이동했다가 돌아올 때 포함)
   window.addEventListener("hashchange", () => show(loadPage() - 1));
-  // 키보드: 입력칸에 쓰는 중에는 슬라이드를 넘기지 않는다
+  // 키보드: 입력 중, 모달이 열린 동안, 조합키(Alt+← 등)는 가로채지 않는다
   window.addEventListener("keydown", e => {
-    if (e.target === input) return;
+    if (e.key === "Escape") { modal.classList.remove("open"); return; }
+    if (e.target === input || modal.classList.contains("open")) return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const scrollKeys = ["PageDown", "PageUp", " "];
+    if (isScrolling() && scrollKeys.includes(e.key)) return;   // 작은 창에서는 스크롤에 양보
     if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); go(1); }
     if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(-1); }
     if (e.key === "Home") show(0);
     if (e.key === "End") show(total - 1);
-    if (e.key === "Escape") modal.classList.remove("open");
   });
 
-  // 다이어그램 전체화면: 렌더링된 SVG를 복제해 모달로 키운다
-  const modal = document.getElementById("diagramModal");
+  // ---------- 출처 번호 [N] → 출처 슬라이드의 해당 항목 ----------
+  document.querySelectorAll("a.cite").forEach(a => {
+    const item = document.getElementById("ref-" + a.dataset.ref);
+    if (!item || !item.closest(".slide")) {
+      console.warn(`[slide] 출처 [${a.dataset.ref}]에 해당하는 ref-${a.dataset.ref} 항목이 출처 슬라이드에 없습니다.`);
+      return;
+    }
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      const target = slides.indexOf(item.closest(".slide"));
+      history.pushState(null, "", `#${target + 1}`);   // 뒤로 가기로 원래 장에 돌아온다
+      show(target);
+      item.classList.add("ref-hit");
+      setTimeout(() => item.classList.remove("ref-hit"), 1800);
+    });
+  });
+
+  // ---------- 글자 크기 점검: 캔버스 기준 24px 미만 텍스트 경고 ----------
+  function checkTextSize(){
+    const small = [];
+    stage.querySelectorAll(".slide *").forEach(el => {
+      if (el.closest("svg") || !el.childNodes.length) return;
+      const hasText = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+      if (hasText && parseFloat(getComputedStyle(el).fontSize) < MIN_CANVAS_FONT) small.push(el);
+    });
+    if (small.length) console.warn(`[slide] 캔버스 기준 ${MIN_CANVAS_FONT}px 미만 글자 ${small.length}곳:`, small);
+  }
+  checkTextSize();
+
+  // ---------- 코드 하이라이트 (CDN 실패해도 덱은 동작) ----------
+  if (typeof hljs !== "undefined") {
+    hljs.highlightAll();
+  } else {
+    console.warn("[slide] highlight.js를 불러오지 못했습니다. 코드가 하이라이트되지 않습니다.");
+  }
+
+  // ---------- Mermaid + 다이어그램 글자 크기 점검 ----------
+  // 다이어그램은 카드 크기에 맞춰 줄어든다. 실제 그려진 글자를 재서
+  // 캔버스 기준 24px 미만이면 경고한다 → 다이어그램을 나누거나 노드를 줄인다.
+  function checkDiagram(svg){
+    const r = svg.getBoundingClientRect();
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (!vb || !vb.width || !r.width) return;
+    const ratio = Math.min(r.width / vb.width, r.height / vb.height) / scale;  // 캔버스 기준 배율
+    let min = Infinity, minUnits = Infinity;   // minUnits: 다이어그램 자체 좌표 기준 최소 글자
+    svg.querySelectorAll("text, foreignObject span, foreignObject div, foreignObject p").forEach(t => {
+      if (!t.textContent.trim()) return;
+      const fs = parseFloat(getComputedStyle(t).fontSize);
+      if (fs) { min = Math.min(min, fs * ratio); minUnits = Math.min(minUnits, fs); }
+    });
+    if (Number.isFinite(minUnits)) svg.dataset.minFont = minUnits;   // 전체화면 모달 폭 계산에 쓴다
+    if (min < MIN_CANVAS_FONT) {
+      const id = svg.closest(".mermaid").id;
+      svg.closest(".mermaid").dataset.tooSmall = Math.round(min);
+      console.warn(`[slide] 다이어그램 #${id} 글자가 캔버스 기준 ${Math.round(min)}px로 줄었습니다(최소 ${MIN_CANVAS_FONT}px). 다이어그램을 나누십시오.`);
+    }
+  }
+  if (typeof mermaid !== "undefined") {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "base",
+      themeVariables: {
+        fontFamily: '"Noto Sans KR", sans-serif', fontSize: "24px",
+        primaryColor: "#FCFDFE", primaryBorderColor: "#0B1B2E", primaryTextColor: "#0B1B2E",
+        lineColor: "#0B1B2E", secondaryColor: "#EEF1F5", tertiaryColor: "#F4F6F9"
+      }
+    });
+    mermaid.run({ querySelector: ".mermaid" })
+      .then(() => document.querySelectorAll(".mermaid svg").forEach(checkDiagram))
+      .catch(err => console.warn("[slide] Mermaid 렌더링 실패:", err));
+  } else {
+    console.warn("[slide] Mermaid를 불러오지 못했습니다. 다이어그램이 코드로 보입니다.");
+  }
+
+  // ---------- 다이어그램 전체화면 ----------
+  // 모달도 9pt 규칙을 지킨다: 실제로 잰 가장 작은 다이어그램 글자가 화면에서
+  // 13.2px 이상이 되도록 폭 하한을 정하고, 넘치면 모달 안에서 스크롤한다.
+  const MIN_SCREEN_FONT = MIN_CANVAS_FONT * MIN_SCALE;   // 13.2px
   const modalHost = document.getElementById("modalDiagramHost");
   document.querySelectorAll(".btn-fullscreen").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -573,9 +680,11 @@ npm run build</code></pre>
       modalHost.innerHTML = "";
       if (svg) {
         const clone = svg.cloneNode(true);
+        const vbw = (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width) || 0;
         clone.style.maxWidth = "none";   // mermaid가 넣은 max-width부터 지워야 커진다
         clone.style.maxHeight = "none";
-        clone.style.width = "80vw";
+        const minUnits = parseFloat(svg.dataset.minFont) || MIN_CANVAS_FONT;
+        clone.style.width = `max(80vw, ${Math.ceil(vbw * MIN_SCREEN_FONT / minUnits)}px)`;
         clone.style.height = "auto";
         modalHost.appendChild(clone);
       }
