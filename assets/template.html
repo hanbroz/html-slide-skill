@@ -210,9 +210,22 @@
   /* ---------- Mermaid ---------- */
   .diagram-card{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;
     background:var(--card);border:1px solid var(--line);padding:48px}
-  .diagram-card .mermaid{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
-  /* mermaid는 svg에 실제 크기만큼 max-width를 박는다 → 풀어서 카드 크기까지 키운다 */
-  .diagram-card .mermaid svg{width:100%;height:100%;max-width:100% !important;max-height:560px}
+  /* 슬라이드 본문 글꼴 설정(28px, 줄 간격 1.5, keep-all)이 다이어그램 글자에 섞이면
+     Mermaid가 잰 크기와 실제 그려진 크기가 달라져 글자가 잘린다 → 다이어그램 안은 따로 고정 */
+  .diagram-card .mermaid,#modalDiagramHost{width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-body);font-size:28px;line-height:1.3;letter-spacing:normal;word-break:keep-all}
+  .diagram-card .mermaid p,#modalDiagramHost p{margin:0}
+  /* 노드 안 여백: 그리기 전에 적용돼 있어야 Mermaid가 상자 크기에 포함해 잰다 */
+  .diagram-card .mermaid .nodeLabel,#modalDiagramHost .nodeLabel{display:inline-block;padding:10px 18px}
+  /* 원래 크기보다 키우지 않고(Mermaid가 넣는 max-width 유지), 카드보다 크면 줄인다 */
+  .diagram-card .mermaid svg{width:100%;height:auto;max-height:100%}
+  #modalDiagramHost svg{flex:none}   /* 모달에서는 지정한 최소 폭을 지킨다(줄어들지 않게) */
+  /* Mermaid가 있을 때만 그리기 전 원문을 숨긴다(CDN이 막히면 원문이라도 보이게) */
+  .has-mermaid .diagram-card .mermaid:not([data-processed]){visibility:hidden}
+  /* 글자가 잘리거나 24px 미만으로 줄어든 다이어그램은 카드에 표시해 넘기기 전에 반드시 고치게 한다 */
+  .diagram-card.is-too-small{outline:3px dashed var(--accent);outline-offset:-3px}
+  .diagram-card.is-too-small::after{content:attr(data-warning);position:absolute;left:24px;top:8px;
+    font:600 var(--fs-label)/1.3 var(--font-body);color:var(--accent);background:var(--card);padding:2px 8px}
   .btn-fullscreen{position:absolute;top:24px;right:24px;font:600 var(--fs-label)/1 var(--font-body);
     color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:12px 20px;cursor:pointer}
   .diagram-modal{display:none;position:fixed;inset:0;background:rgba(11,27,46,.78);z-index:50;
@@ -520,7 +533,9 @@ npm run build</code></pre>
   const stageBox = document.getElementById("stageBox");
   const viewport = document.querySelector(".viewport");
   let scale = 1;
+  let renderingDiagrams = false;   // Mermaid가 그리는 동안에는 배율을 바꾸지 않는다
   function fit(){
+    if (renderingDiagrams) return;
     scale = Math.max(MIN_SCALE, Math.min(viewport.clientWidth / 1920, viewport.clientHeight / 1080));
     stage.style.transform = `scale(${scale})`;
     stageBox.style.width = `${1920 * scale}px`;
@@ -634,6 +649,12 @@ npm run build</code></pre>
   // ---------- Mermaid + 다이어그램 글자 크기 점검 ----------
   // 다이어그램은 카드 크기에 맞춰 줄어든다. 실제 그려진 글자를 재서
   // 캔버스 기준 24px 미만이면 경고한다 → 다이어그램을 나누거나 노드를 줄인다.
+  function markTooSmall(svg, msg){
+    const card = svg.closest(".diagram-card");
+    if (!card) return;
+    card.classList.add("is-too-small");
+    card.dataset.warning = msg;
+  }
   function checkDiagram(svg){
     const r = svg.getBoundingClientRect();
     const vb = svg.viewBox && svg.viewBox.baseVal;
@@ -649,22 +670,101 @@ npm run build</code></pre>
     if (min < MIN_CANVAS_FONT) {
       const id = svg.closest(".mermaid").id;
       svg.closest(".mermaid").dataset.tooSmall = Math.round(min);
+      markTooSmall(svg, `글자가 ${Math.round(min)}px로 작습니다 — 다이어그램을 나누십시오`);
       console.warn(`[slide] 다이어그램 #${id} 글자가 캔버스 기준 ${Math.round(min)}px로 줄었습니다(최소 ${MIN_CANVAS_FONT}px). 다이어그램을 나누십시오.`);
     }
   }
+  // 글자가 상자 밖으로 넘치거나 잘린 노드를 찾는다
+  function clippedLabels(svg){
+    return [...svg.querySelectorAll("foreignObject")].filter(fo => {
+      const inner = fo.firstElementChild;
+      if (!inner || !fo.textContent.trim()) return false;
+      const w = parseFloat(fo.getAttribute("width")), h = parseFloat(fo.getAttribute("height"));
+      return inner.scrollWidth > w + 2 || inner.scrollHeight > h + 4;   // 반올림 오차는 허용
+    }).map(fo => fo.textContent.trim());
+  }
+
+  // Mermaid는 그리는 순간 글자 크기를 화면에서 재서 상자 크기를 정한다.
+  // 캔버스가 scale(0.6)처럼 줄어 있으면 글자도 줄어든 크기로 재져 상자가 작게 만들어지고,
+  // 실제 글자는 원래 크기로 그려져 잘린다. 그래서
+  //  1) 웹 글꼴이 모두 로드된 뒤에
+  //  2) 캔버스를 잠시 배율 1로 되돌린 상태(화면에는 숨김)에서 그리고
+  //  3) 다 그린 뒤 원래 배율로 돌린다. 이후 창 크기가 바뀌어도 SVG가 비율대로 줄어들 뿐 다시 잴 필요가 없다.
+  const MAX_DIAGRAM_UPSCALE = 1.3;
+  async function renderDiagrams(){
+    // 한글 웹 글꼴을 실제로 불러온 뒤 잰다. 네트워크가 막혀도 3초 뒤에는 진행한다.
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    // 한글 글꼴은 글자 범위별로 파일이 나뉘어 있으므로 다이어그램에 실제로 쓰인 글자를 넘긴다
+    const text = [...document.querySelectorAll(".mermaid")].map(e => e.textContent).join("").replace(/\s+/g, "") || "가나다";
+    try {
+      await Promise.race([
+        Promise.all([
+          document.fonts.load('28px "Noto Sans KR"', text),
+          document.fonts.load('600 28px "Noto Sans KR"', text)
+        ]).then(() => document.fonts.ready),
+        wait(3000)
+      ]);
+    } catch (e) {}
+    renderingDiagrams = true;
+    viewport.style.overflow = "hidden";       // 스크롤바가 생겼다 사라지며 배율이 틀어지지 않게
+    stage.style.visibility = "hidden";
+    stage.style.transform = "none";
+    try {
+      await mermaid.run({ querySelector: ".mermaid" });
+    } catch (err) {
+      console.warn("[slide] Mermaid 렌더링 실패:", err);
+    } finally {
+      renderingDiagrams = false;
+      viewport.style.overflow = "";
+      fit();
+      requestAnimationFrame(fit);             // 레이아웃이 안정된 뒤 한 번 더 맞춘다
+      stage.style.visibility = "";
+    }
+    // 3초 뒤 늦게 도착한 글꼴로 글자 폭이 바뀌면 잘림을 다시 점검한다
+    document.fonts.addEventListener("loadingdone", () => {
+      document.querySelectorAll(".mermaid svg").forEach(svg => {
+        const clipped = clippedLabels(svg);
+        if (clipped.length) {
+          markTooSmall(svg, "잘린 글자가 있습니다 — 노드 문구를 줄이십시오");
+          console.warn(`[slide] 글꼴 로드 후 다이어그램 #${svg.closest(".mermaid").id}에서 잘린 글자: ${clipped.join(", ")}`);
+        }
+      });
+    });
+    document.querySelectorAll(".mermaid svg").forEach(svg => {
+      // 문법 오류는 글자 크기 문제와 따로 알린다
+      if (svg.getAttribute("aria-roledescription") === "error") {
+        markTooSmall(svg, "Mermaid 문법 오류 — 다이어그램 코드를 확인하십시오");
+        console.warn(`[slide] 다이어그램 #${svg.closest(".mermaid").id} 문법 오류`);
+        return;
+      }
+      // 작은 다이어그램은 원래 크기의 최대 1.3배까지만 키운다(글자 28px → 약 36px).
+      // 그 이상 키우면 카드 제목(40px)보다 커져 어색하다. 카드보다 크면 CSS가 줄인다.
+      const vb = svg.viewBox && svg.viewBox.baseVal;
+      if (vb && vb.width) svg.style.maxWidth = `${Math.round(vb.width * MAX_DIAGRAM_UPSCALE)}px`;
+      const clipped = clippedLabels(svg);
+      if (clipped.length) markTooSmall(svg, "잘린 글자가 있습니다 — 노드 문구를 줄이십시오");
+      if (clipped.length) console.warn(`[slide] 다이어그램 #${svg.closest(".mermaid").id}에서 상자보다 긴 글자가 있습니다: ${clipped.join(", ")}. 노드 문구를 줄이거나 <br>로 줄을 나누십시오.`);
+      checkDiagram(svg);
+    });
+  }
+
   if (typeof mermaid !== "undefined") {
+    document.documentElement.classList.add("has-mermaid");
     mermaid.initialize({
       startOnLoad: false,
+      fontSize: 28,          // 최상위 값이 없으면 시퀀스 등은 기본 16px로 그려진다
       theme: "base",
       themeVariables: {
-        fontFamily: '"Noto Sans KR", sans-serif', fontSize: "24px",
+        fontFamily: '"Noto Sans KR", sans-serif', fontSize: "28px",
         primaryColor: "#FCFDFE", primaryBorderColor: "#0B1B2E", primaryTextColor: "#0B1B2E",
         lineColor: "#0B1B2E", secondaryColor: "#EEF1F5", tertiaryColor: "#F4F6F9"
-      }
+      },
+      // 노드 안 여백과 간격을 슬라이드 크기(1920) 기준으로 넉넉하게
+      flowchart: { htmlLabels: true, padding: 16, nodeSpacing: 56, rankSpacing: 56, wrappingWidth: 360, useMaxWidth: true },
+      // 시퀀스 다이어그램은 글자 크기를 따로 정하므로 같은 28px로 맞춘다(간트는 쓰지 않는다 — 표로 대신)
+      sequence: { actorFontSize: 28, messageFontSize: 28, noteFontSize: 28, mirrorActors: false, useMaxWidth: true }
     });
-    mermaid.run({ querySelector: ".mermaid" })
-      .then(() => document.querySelectorAll(".mermaid svg").forEach(checkDiagram))
-      .catch(err => console.warn("[slide] Mermaid 렌더링 실패:", err));
+    renderDiagrams();
   } else {
     console.warn("[slide] Mermaid를 불러오지 못했습니다. 다이어그램이 코드로 보입니다.");
   }
