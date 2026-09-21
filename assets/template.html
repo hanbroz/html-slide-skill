@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>[문서 제목]</title>
+<!-- 글꼴: Google Fonts CSS는 브라우저마다 응답이 달라 SRI를 걸 수 없다(예외). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@200;300;600&family=Noto+Sans+KR:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.8/dist/mermaid.min.js"
   integrity="sha384-N3QqR/7q+xm3BGX+CBbNI8AUmRRqcsDzToy+0z1NLDI0QmTKW8zvwLvqulJgk3dP"
   crossorigin="anonymous"></script>
@@ -14,241 +18,563 @@
   integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
   crossorigin="anonymous"></script>
 <style>
-  /* ---- 라이트 테마 고정 토큰 (다크모드 없음) ---- */
+  /* =========================================================
+     디자인 토큰 — references/design-system.md 와 값이 같아야 한다.
+     라이트 테마 고정. 어두운 배경은 표지·챕터·코드 패널에만 쓴다.
+     ========================================================= */
   :root{
-    --bg:#ffffff; --bg-soft:#f5f6f8; --ink:#14181f; --ink-soft:#4b5563;
-    --line:#e3e6ea; --accent:#1f4fd8; --accent-soft:#eaf0ff;
-    --chapter-bg:#0f1b3d; --chapter-ink:#ffffff; --chapter-accent:#7ea2ff;
-    --radius:12px; --shadow:0 4px 20px rgba(20,24,31,.08);
-    --font-ui:"Pretendard","Segoe UI",system-ui,sans-serif;
-    --font-mono:"JetBrains Mono","Consolas",monospace;
+    --navy:#0B1B2E;      /* 제목 글자, 표지·챕터 배경 */
+    --navy-2:#243449;    /* 어두운 배경 위 구분선 */
+    --bg:#F4F6F9;        /* 본문 슬라이드 배경 */
+    --bg-2:#EEF1F5;      /* 콜아웃, 표 머리글 */
+    --card:#FCFDFE;      /* 카드, 흐름 상자 */
+    --line:#D3DAE4;      /* 괘선 */
+    --ink:#0B1B2E;       /* 본문 강조 글자 */
+    --ink-2:#475467;     /* 본문 글자 */
+    --ink-3:#5A6578;     /* 라벨, 각주, 푸터 */
+    --accent:#D51F29;    /* 이스타항공 메인 컬러 — 라벨과 핵심 한 곳에만 */
+    --accent-dark:#FF6B70; /* 어두운 배경 위 강조 */
+    --on-dark:#F1F4F8; --on-dark-2:#A7B4C6; --on-dark-3:#8A97AA;
+
+    --fs-display:120px; --fs-title:64px; --fs-h3:40px; --fs-body:28px; --fs-label:24px;
+    --pad:128px;
+
+    --font-head:"IBM Plex Sans KR","Noto Sans KR","Malgun Gothic",sans-serif;
+    --font-body:"Noto Sans KR","Malgun Gothic",sans-serif;
+    --font-mono:"JetBrains Mono",Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
-    font-family:var(--font-ui);word-break:keep-all;overflow:hidden}
+  html,body{margin:0;height:100%;overflow:hidden;background:#DDE3EA}
 
-  .deck{position:relative;width:100%;height:100vh}
+  /* 1920x1080 고정 캔버스를 창 크기에 맞춰 확대·축소한다.
+     모든 px 값은 1920 기준이므로 가이드 수치를 그대로 쓴다. */
+  /* 아래 64px는 탐색 막대 자리 — 슬라이드와 겹치지 않는다 */
+  .viewport{position:fixed;left:0;right:0;top:0;bottom:64px;display:flex;align-items:center;justify-content:center}
+  .stage{width:1920px;height:1080px;flex:none;position:relative;overflow:hidden;transform-origin:center center}
+
+  /* opacity로 숨긴다: display:none이면 숨은 슬라이드의 mermaid가
+     크기를 재지 못해 "translate(undefined, NaN)"로 깨진다 */
   .slide{
-    position:absolute;inset:0;display:flex;flex-direction:column;
-    padding:64px 88px;overflow-y:auto;
-    opacity:0;pointer-events:none;z-index:0;
+    position:absolute;inset:0;overflow:hidden;
+    display:flex;flex-direction:column;gap:48px;
+    padding:var(--pad) var(--pad) 160px;
+    background:var(--bg);color:var(--ink);
+    font-family:var(--font-body);font-size:var(--fs-body);line-height:1.5;
+    word-break:keep-all;opacity:0;pointer-events:none;z-index:0
   }
-  /* opacity(레이아웃 유지)로 숨김: display:none을 쓰면 숨은 슬라이드의
-     mermaid가 크기를 잴 수 없어 "translate(undefined, NaN)"로 깨짐 */
   .slide.active{opacity:1;pointer-events:auto;z-index:1}
+  .slide h1,.slide h2,.slide h3,.slide p,.slide ul,.slide ol{margin:0}
+  .slide--spread{justify-content:space-between}
+  .fill{flex:1}
+  .muted{color:var(--ink-2)}
+  .mono{font-family:var(--font-mono)}
+  .em{color:var(--accent);font-weight:600}
 
-  /* 표지 / 결론 요약 (두괄식) */
-  .slide--cover{justify-content:center;gap:20px}
-  .slide--cover .kicker{color:var(--accent);font-weight:700;letter-spacing:.04em}
-  .slide--cover h1{font-size:42px;margin:0;line-height:1.3}
-  .slide--cover .conclusion{
-    margin-top:12px;padding:24px 28px;background:var(--accent-soft);
-    border-left:4px solid var(--accent);border-radius:8px;font-size:19px;line-height:1.6
-  }
+  /* 본문 슬라이드 머리: 모든 본문 슬라이드에서 같은 높이에 온다 */
+  .head{display:flex;flex-direction:column;gap:16px}
+  .eyebrow{font-size:var(--fs-label);font-weight:600;letter-spacing:2px;color:var(--accent)}
+  .title{font-family:var(--font-head);font-size:var(--fs-title);font-weight:600;line-height:1.2;letter-spacing:-1px;color:var(--navy)}
+  .lead{color:var(--ink-2);max-width:1200px}
+  h3{font-family:var(--font-head);font-size:var(--fs-h3);font-weight:600;line-height:1.3}
 
-  /* 챕터 표지: 배경 다르게 + 챕터 요약 */
-  .slide--chapter{
-    background:var(--chapter-bg);color:var(--chapter-ink);
-    justify-content:center;gap:16px;
-  }
-  .slide--chapter .chapter-no{color:var(--chapter-accent);font-weight:700}
-  .slide--chapter h2{font-size:38px;margin:0}
-  .slide--chapter ul{color:#c7d2f5;font-size:17px;line-height:1.8}
+  /* 푸터: 하단 64px 한 줄. 페이지 번호는 스크립트가 채운다 */
+  .foot{position:absolute;left:var(--pad);right:var(--pad);bottom:64px;
+    display:flex;justify-content:space-between;padding-top:14px;
+    border-top:1px solid var(--line);font-size:var(--fs-label);line-height:1.4;color:var(--ink-3)}
+  .foot-page{font-variant-numeric:tabular-nums}
 
-  h2.section-title{font-size:26px;margin:0 0 24px}
+  /* ---------- 어두운 슬라이드: 표지 · 챕터 ---------- */
+  .slide--dark{background:var(--navy);color:var(--on-dark);padding:var(--pad)}
+  .slide--dark .title{color:var(--on-dark)}
 
-  /* 표 */
-  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
-  table{border-collapse:collapse;width:100%;min-width:560px}
-  th,td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
-  th{background:var(--bg-soft);font-weight:700}
+  .slide--cover{justify-content:space-between;gap:40px}
+  .cover-top{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-label);letter-spacing:3px}
+  .cover-top .brand{color:var(--accent-dark);font-weight:600}
+  .cover-top .kind{color:var(--on-dark-2)}
+  .cover-title{font-family:var(--font-head);font-size:var(--fs-display);font-weight:600;line-height:1.1;letter-spacing:-3px}
+  .cover-conclusion{display:flex;gap:40px;align-items:baseline;max-width:1500px;margin-top:40px}
+  .cover-conclusion .label{font-size:var(--fs-label);font-weight:600;letter-spacing:2px;color:var(--accent-dark);white-space:nowrap}
+  .cover-conclusion p{color:var(--on-dark)}
+  .cover-meta{display:flex;gap:96px;border-top:1px solid var(--navy-2);padding-top:32px}
+  .cover-meta dl{margin:0;display:flex;flex-direction:column;gap:8px}
+  .cover-meta dt{font-size:var(--fs-label);color:var(--on-dark-3)}
+  .cover-meta dd{margin:0}
 
-  /* mermaid 다이어그램 + 전체화면 */
-  .diagram-card{border:1px solid var(--line);border-radius:var(--radius);
-    padding:20px;background:var(--bg-soft);position:relative}
-  .diagram-card .mermaid{background:transparent}
-  .btn-fullscreen{
-    position:absolute;top:14px;right:14px;border:1px solid var(--line);
-    background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;
-    cursor:pointer;box-shadow:var(--shadow)
-  }
-  .diagram-modal{
-    display:none;position:fixed;inset:0;background:rgba(15,18,25,.72);
-    z-index:50;align-items:center;justify-content:center;padding:40px
-  }
+  .slide--chapter{display:grid;grid-template-columns:600px 1fr;gap:96px;align-items:end}
+  .chapter-no{font-family:var(--font-head);font-size:320px;font-weight:200;line-height:1;letter-spacing:-8px;color:var(--accent-dark)}
+  .chapter-body{display:flex;flex-direction:column;gap:48px}
+  .chapter-kicker{font-size:var(--fs-label);font-weight:600;letter-spacing:3px;color:var(--on-dark-2)}
+  .chapter-list{list-style:none;padding:0}
+  .chapter-list li{padding:20px 0;border-top:1px solid var(--navy-2);color:var(--on-dark-2)}
+  .chapter-list li:last-child{border-bottom:1px solid var(--navy-2)}
+
+  /* ---------- 강조 문장: 덱에서 한 장만 ---------- */
+  .slide--statement{background:var(--accent);color:#F5F8FF;padding:var(--pad);justify-content:center}
+  .slide--statement .eyebrow{color:#F5F8FF;letter-spacing:3px}
+  .statement-title{font-family:var(--font-head);font-size:var(--fs-display);font-weight:600;line-height:1.15;letter-spacing:-3px;max-width:1500px}
+  .slide--statement p{max-width:1100px}
+
+  /* ---------- 번호 3단 요약 ---------- */
+  .num-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:48px}
+  .num-item{display:flex;flex-direction:column;gap:16px;border-top:2px solid var(--navy);padding-top:32px}
+  .num{font-family:var(--font-head);font-size:var(--fs-title);font-weight:300;line-height:1;color:var(--accent)}
+  .num-item p{color:var(--ink-2)}
+
+  /* ---------- 키-값 행 ---------- */
+  .rows{display:flex;flex-direction:column}
+  .row{display:flex;gap:48px;padding:22px 0;border-top:1px solid var(--line);line-height:1.4}
+  .row:last-child{border-bottom:1px solid var(--line)}
+  .row-key{width:760px;flex:none;color:var(--ink-2)}
+  .row-val{flex:1;font-weight:600}
+  .row-val.is-key{color:var(--accent)}
+
+  /* ---------- 콜아웃: 왼쪽 색 막대 대신 회색 면 + 빨간 라벨 ---------- */
+  .callout{display:flex;gap:32px;align-items:baseline;background:var(--bg-2);padding:28px 40px}
+  .callout-label{font-size:var(--fs-label);font-weight:600;letter-spacing:2px;color:var(--accent);white-space:nowrap}
+
+  /* ---------- 흐름: 4단계까지 ---------- */
+  .flow{display:flex;gap:20px}
+  .flow-node{flex:1;display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);padding:36px}
+  .flow-node .eyebrow{font-size:var(--fs-label)}
+  .flow-node p{color:var(--ink-2)}
+  .flow-arrow{flex:none;align-self:center;width:40px;height:20px;background:var(--navy);
+    clip-path:polygon(0 30%,60% 30%,60% 0,100% 50%,60% 100%,60% 70%,0 70%)}
+  .flow-note{display:flex;gap:96px;border-top:1px solid var(--line);padding-top:40px}
+  .flow-note h3{width:760px;flex:none;line-height:1.35}
+  .flow-note p{flex:1;color:var(--ink-2)}
+
+  /* ---------- 카드 3장 ---------- */
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+  .card{display:flex;flex-direction:column;gap:20px;background:var(--card);border:1px solid var(--line);padding:40px}
+  .card--key{border:2px solid var(--accent)}
+  .card-tag{font-family:var(--font-mono);font-size:var(--fs-label);color:var(--ink-3)}
+  .card-desc{color:var(--ink-2);line-height:1.45}
+  .card-foot{margin-top:auto;padding-top:20px;border-top:1px solid var(--line);
+    font-size:var(--fs-label);font-weight:600;letter-spacing:2px;color:var(--ink-3)}
+  .card-foot + p{line-height:1.45}
+
+  /* ---------- 번호 단계: 3열, 6단계까지 ---------- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+  .step{display:flex;flex-direction:column;gap:12px;border-top:2px solid var(--navy);padding-top:24px}
+  .step--key{border-top-color:var(--accent)}
+  .step-no{font-family:var(--font-mono);font-size:var(--fs-label);color:var(--accent)}
+  .step h3{font-family:var(--font-body);font-size:var(--fs-body);line-height:1.4}
+  .step p{color:var(--ink-2)}
+
+  /* ---------- 코드 패널 + 설명 ---------- */
+  .split{display:flex;gap:80px}
+  .code-panel{width:860px;flex:none;display:flex;flex-direction:column;justify-content:space-between;gap:48px;
+    background:var(--navy);color:var(--on-dark);border-radius:4px;padding:56px}
+  .code-panel-label{font-size:var(--fs-label);letter-spacing:2px;color:var(--on-dark-2)}
+  .code-panel-value{font-family:var(--font-mono);font-size:var(--fs-title);line-height:1.2;letter-spacing:-1px;color:var(--accent-dark)}
+  .code-panel-note{font-size:var(--fs-label);color:var(--on-dark-2);border-top:1px solid var(--navy-2);padding-top:24px}
+  .notes{flex:1;display:flex;flex-direction:column;gap:32px}
+  .note{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:24px}
+  .note h3{font-family:var(--font-body);font-size:var(--fs-body);line-height:1.4}
+  .note p{color:var(--ink-2)}
+
+  /* ---------- 표 ---------- */
+  table.data{width:100%;border-collapse:collapse;border:1px solid var(--line);font-size:var(--fs-body);line-height:1.4}
+  table.data th,table.data td{padding:16px 24px;border:1px solid var(--line);text-align:left;vertical-align:top}
+  table.data thead th{background:var(--bg-2);font-weight:600}
+  table.data--compact{font-size:26px}
+  table.data--compact th,table.data--compact td{padding:14px 22px}
+
+  /* ---------- 두 칸 비교 ---------- */
+  .compare{display:flex;gap:80px}
+  .compare-col{flex:1;display:flex;flex-direction:column}
+  .compare-head{font-size:var(--fs-label);font-weight:600;letter-spacing:2px;padding-bottom:16px;border-bottom:2px solid currentColor}
+  .compare-col--primary .compare-head{color:var(--accent)}
+  .compare-col--secondary .compare-head{color:var(--navy)}
+  .compare-col p{padding:18px 0;border-bottom:1px solid var(--line);line-height:1.4}
+
+  /* ---------- 한 장 요약 ---------- */
+  .recap{display:grid;grid-template-columns:repeat(2,1fr);gap:32px}
+  .recap-item{display:flex;gap:24px;border-top:1px solid var(--line);padding-top:20px}
+  .recap-key{width:200px;flex:none;font-size:var(--fs-label);font-weight:600;line-height:1.6;color:var(--accent)}
+  .recap-val{flex:1;line-height:1.45}
+
+  /* ---------- Mermaid ---------- */
+  .diagram-card{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;
+    background:var(--card);border:1px solid var(--line);padding:48px}
+  .diagram-card .mermaid{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  /* mermaid는 svg에 실제 크기만큼 max-width를 박는다 → 풀어서 카드 크기까지 키운다 */
+  .diagram-card .mermaid svg{width:100%;height:100%;max-width:100% !important;max-height:560px}
+  .btn-fullscreen{position:absolute;top:24px;right:24px;font:600 var(--fs-label)/1 var(--font-body);
+    color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:12px 20px;cursor:pointer}
+  .diagram-modal{display:none;position:fixed;inset:0;background:rgba(11,27,46,.78);z-index:50;
+    align-items:center;justify-content:center;padding:40px}
   .diagram-modal.open{display:flex}
-  .diagram-modal .modal-inner{
-    background:#fff;border-radius:16px;padding:32px;max-width:96vw;
-    max-height:92vh;overflow:auto;position:relative
-  }
-  .diagram-modal .modal-close{
-    position:absolute;top:14px;right:18px;border:none;background:none;
-    font-size:22px;cursor:pointer;color:var(--ink-soft)
-  }
+  .diagram-modal .modal-inner{background:var(--card);padding:40px;max-width:96vw;max-height:92vh;overflow:auto;position:relative}
+  .diagram-modal .modal-close{position:absolute;top:12px;right:16px;border:none;background:none;font-size:28px;cursor:pointer;color:var(--ink-3)}
 
-  /* 코드 하이라이트 */
-  .code-card{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}
-  .code-card .code-label{
-    background:var(--bg-soft);padding:8px 16px;font-size:12px;
-    color:var(--ink-soft);border-bottom:1px solid var(--line)
-  }
-  pre{margin:0;padding:18px;overflow-x:auto;font-family:var(--font-mono);font-size:13.5px}
+  /* ---------- 코드 블록 (highlight.js) ---------- */
+  .code-card{background:var(--card);border:1px solid var(--line)}
+  .code-label{font-size:var(--fs-label);color:var(--ink-3);background:var(--bg-2);padding:14px 32px;border-bottom:1px solid var(--line)}
+  .code-card pre{margin:0;padding:32px;font-family:var(--font-mono);font-size:var(--fs-body);line-height:1.6;white-space:pre-wrap}
+  .code-card .hljs{background:transparent;padding:0}
 
-  /* 출처 / 참고자료 */
-  .ref-list{font-size:14px;line-height:2;color:var(--ink-soft)}
-  .ref-list a{color:var(--accent)}
+  /* ---------- 출처 · 참고자료 ---------- */
+  .refs{list-style:none;padding:0}
+  .refs li{display:flex;gap:32px;padding:18px 0;border-top:1px solid var(--line);font-size:var(--fs-label);line-height:1.5;color:var(--ink-2)}
+  .refs li:last-child{border-bottom:1px solid var(--line)}
+  .refs .ref-no{font-family:var(--font-mono);color:var(--accent);width:48px;flex:none}
+  .refs b{color:var(--ink)}
+  .refs a{color:var(--accent);word-break:break-all}
 
-  /* 네비게이션 */
-  .nav{
-    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
-    display:flex;align-items:center;gap:14px;background:#fff;
-    border:1px solid var(--line);border-radius:999px;padding:8px 18px;
-    box-shadow:var(--shadow);font-size:13px;z-index:40
-  }
-  .nav button{border:none;background:none;cursor:pointer;font-size:14px;color:var(--ink)}
-  .nav button:disabled{opacity:.3;cursor:default}
+  /* ---------- 탐색 (슬라이드 밖 UI) ---------- */
   .progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);z-index:40;transition:width .2s}
+  .nav{position:fixed;left:0;right:0;bottom:0;height:64px;z-index:40;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    background:var(--card);border-top:1px solid var(--line);
+    font:16px var(--font-body);color:var(--ink)}
+  .nav button{font:600 16px var(--font-body);color:var(--ink);background:var(--card);
+    border:1px solid var(--line);border-radius:6px;padding:8px 16px;cursor:pointer}
+  .nav button:hover:not(:disabled){border-color:var(--navy)}
+  .nav button:disabled{opacity:.35;cursor:default}
+  .nav .nav-go{background:var(--navy);color:var(--on-dark);border-color:var(--navy)}
+  .nav input{width:72px;font:600 16px var(--font-mono);text-align:center;
+    border:1px solid var(--line);border-radius:6px;padding:8px 6px;color:var(--ink)}
+  .nav input:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .nav .nav-total{color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:48px}
 </style>
 </head>
 <body>
 
 <div class="progress" id="progress"></div>
-<div class="deck" id="deck">
+<div class="viewport"><div class="stage" id="stage">
 
-  <!-- 1. 표지: 두괄식 결론 요약 -->
-  <section class="slide slide--cover active">
-    <div class="kicker">[프로젝트/보고서 구분]</div>
-    <h1>[문서 제목을 한 문장으로]</h1>
-    <div class="conclusion">
-      <strong>결론:</strong> [핵심 결론과 권고안을 여기 한 문단으로 압축. 독자가 이 슬라이드만 봐도
-      의사결정에 필요한 결론을 파악할 수 있어야 함]
+  <!-- 1. 표지 (두괄식): 결론 한 문단 -->
+  <section class="slide slide--dark slide--cover active">
+    <div class="cover-top"><p class="brand">[EASTAR JET · 문서 구분]</p><p class="kind">[DOCUMENT TYPE]</p></div>
+    <div>
+      <h1 class="cover-title">[문서 제목]<br>[두 줄까지]</h1>
+      <div class="cover-conclusion">
+        <p class="label">결론</p>
+        <p>[결론과 권고를 한 문단으로. 이 장만 보고도 판단할 수 있어야 한다. 세 줄을 넘기지 않는다.]</p>
+      </div>
+    </div>
+    <div class="cover-meta">
+      <dl><dt>대상</dt><dd>[독자]</dd></dl>
+      <dl><dt>기준 버전</dt><dd class="mono">[0000.00.00]</dd></dl>
+      <dl><dt>작성일</dt><dd>[YYYY년 M월 D일]</dd></dl>
     </div>
   </section>
 
-  <!-- 2. 챕터 표지 예시: 배경 다르게 + 챕터 요약 -->
-  <section class="slide slide--chapter">
-    <div class="chapter-no">Chapter 1</div>
-    <h2>[챕터 제목]</h2>
-    <ul>
-      <li>[이 챕터에서 다루는 내용 요약 1]</li>
-      <li>[이 챕터에서 다루는 내용 요약 2]</li>
-    </ul>
+  <!-- 2. 번호 3단 요약 -->
+  <section class="slide">
+    <div class="head"><p class="eyebrow">요약</p><h2 class="title">[핵심을 한 문장으로]</h2></div>
+    <p class="lead">[두 줄 이내의 배경 설명. 아래 세 가지가 무엇의 목록인지 말해 준다.]</p>
+    <div class="fill"></div>
+    <div class="num-grid">
+      <div class="num-item"><p class="num">01</p><h3>[항목]</h3><p>[한두 줄 설명]</p></div>
+      <div class="num-item"><p class="num">02</p><h3>[항목]</h3><p>[한두 줄 설명]</p></div>
+      <div class="num-item"><p class="num">03</p><h3>[항목]</h3><p>[한두 줄 설명]</p></div>
+    </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-  <!-- 3. 표 예시 -->
+  <!-- 3. 키-값 행 + 콜아웃 -->
   <section class="slide">
-    <h2 class="section-title">[본문 슬라이드 제목]</h2>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>항목</th><th>현재</th><th>목표</th></tr></thead>
-        <tbody>
-          <tr><td>예시 항목 1</td><td>값</td><td>값</td></tr>
-          <tr><td>예시 항목 2</td><td>값</td><td>값</td></tr>
-        </tbody>
-      </table>
+    <div class="head"><p class="eyebrow">[챕터 번호 · 챕터명]</p><h2 class="title">[슬라이드 제목]</h2></div>
+    <div class="rows">
+      <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val">[볼 곳]</p></div>
+      <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val is-key">[강조할 한 행]</p></div>
+      <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val">[볼 곳]</p></div>
+      <div class="row"><p class="row-key">[알고 싶은 것]</p><p class="row-val">[볼 곳]</p></div>
+    </div>
+    <div class="fill"></div>
+    <div class="callout"><p class="callout-label">용어</p><p>[용어 설명 또는 보충 한두 줄]</p></div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 4. 챕터 표지 -->
+  <section class="slide slide--dark slide--chapter">
+    <p class="chapter-no">01</p>
+    <div class="chapter-body">
+      <div class="head"><p class="chapter-kicker">CHAPTER 01</p><h2 class="title">[챕터 제목]</h2></div>
+      <ul class="chapter-list">
+        <li>[이 챕터에서 다루는 내용 1]</li>
+        <li>[이 챕터에서 다루는 내용 2]</li>
+        <li>[이 챕터에서 다루는 내용 3]</li>
+      </ul>
     </div>
   </section>
 
-  <!-- 4. mermaid 다이어그램 + 전체화면 버튼 -->
+  <!-- 5. 흐름 (4단계까지) + 의미 한 줄 -->
+  <section class="slide slide--spread">
+    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[흐름이 보여 주는 것]</h2></div>
+    <div class="flow">
+      <div class="flow-node"><p class="eyebrow">01 [동사]</p><h3>[주체]</h3><p>[한 줄 설명]</p></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node"><p class="eyebrow">02 [동사]</p><h3>[주체]</h3><p>[한 줄 설명]</p></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node"><p class="eyebrow">03 [동사]</p><h3>[주체]</h3><p>[한 줄 설명]</p></div>
+      <div class="flow-arrow"></div>
+      <div class="flow-node"><p class="eyebrow">04 [동사]</p><h3>[주체]</h3><p>[한 줄 설명]</p></div>
+    </div>
+    <div class="flow-note"><h3>[이 흐름 때문에 가능한 것 한 문장]</h3><p>[보충 설명 두 줄 이내]</p></div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 6. 카드 3장 비교 (핵심 카드 하나만 강조) -->
   <section class="slide">
-    <h2 class="section-title">[프로세스/아키텍처 다이어그램]</h2>
+    <div class="head"><p class="eyebrow">[01 · 챕터명]</p><h2 class="title">[구성 요소 세 가지]</h2></div>
+    <div class="cards">
+      <div class="card"><p class="card-tag">[tag]</p><h3>[이름]</h3><p class="card-desc">[역할 두 줄 이내]</p><p class="card-foot">[라벨]</p><p>[결과 두 줄 이내]</p></div>
+      <div class="card"><p class="card-tag">[tag]</p><h3>[이름]</h3><p class="card-desc">[역할 두 줄 이내]</p><p class="card-foot">[라벨]</p><p>[결과 두 줄 이내]</p></div>
+      <div class="card card--key"><p class="card-tag">[tag]</p><h3>[이름]</h3><p class="card-desc">[역할 두 줄 이내]</p><p class="card-foot">[라벨]</p><p>[결과] <span class="em">[핵심 문장]</span></p></div>
+    </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 7. 번호 단계 (6단계까지) + 주의 -->
+  <section class="slide slide--spread">
+    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[절차 이름]</h2></div>
+    <div class="steps">
+      <div class="step"><p class="step-no">01</p><h3>[단계]</h3><p>[한두 줄]</p></div>
+      <div class="step"><p class="step-no">02</p><h3>[단계]</h3><p>[한두 줄]</p></div>
+      <div class="step"><p class="step-no">03</p><h3>[단계]</h3><p>[한두 줄]</p></div>
+      <div class="step"><p class="step-no">04</p><h3>[단계]</h3><p>[한두 줄]</p></div>
+      <div class="step"><p class="step-no">05</p><h3>[단계]</h3><p>[한두 줄]</p></div>
+      <div class="step step--key"><p class="step-no">06</p><h3>[빠뜨리기 쉬운 단계]</h3><p>[한두 줄]</p></div>
+    </div>
+    <div class="callout"><p class="callout-label">주의</p><p>[빠뜨렸을 때 생기는 일과 먼저 의심할 곳]</p></div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 8. 코드 패널 + 설명 세 개 -->
+  <section class="slide slide--spread">
+    <div class="head"><p class="eyebrow">[02 · 챕터명]</p><h2 class="title">[확인 방법]</h2></div>
+    <div class="split">
+      <div class="code-panel">
+        <p class="code-panel-label">[어디에 보이는 값인가]</p>
+        <div><p>[화면 이름]</p><p class="code-panel-value">[ver. 0000.00.00]</p></div>
+        <p class="code-panel-note">[값을 읽는 법]</p>
+      </div>
+      <div class="notes">
+        <div class="note"><h3>[요점]</h3><p>[설명]</p></div>
+        <div class="note"><h3>[요점]</h3><p>[설명]</p></div>
+        <div class="note"><h3>[요점]</h3><p>[설명]</p></div>
+      </div>
+    </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 9. 표 + 참고 -->
+  <section class="slide slide--spread">
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[표가 답하는 질문]</h2></div>
+    <table class="data">
+      <thead><tr><th style="width:24%">[기준]</th><th style="width:30%">[정상]</th><th style="width:46%">[이상하면]</th></tr></thead>
+      <tbody>
+        <tr><td>[항목]</td><td>[값]</td><td>[조치]</td></tr>
+        <tr><td>[항목]</td><td>[값]</td><td>[조치]</td></tr>
+        <tr><td>[항목]</td><td>[값]</td><td>[조치]</td></tr>
+        <tr><td>[항목]</td><td>[값]</td><td>[조치]</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><p class="callout-label">참고</p><p>[표만으로 오해할 수 있는 점]</p></div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 10. Mermaid 다이어그램 + 전체화면 -->
+  <section class="slide">
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[다이어그램이 보여 주는 것]</h2></div>
     <div class="diagram-card">
       <button class="btn-fullscreen" data-target="diagram-1">전체화면</button>
       <div class="mermaid" id="diagram-1">
 flowchart LR
-  A[요청] --> B{검증}
-  B -- 통과 --> C[처리]
-  B -- 실패 --> D[반려]
+  A["요청"] --> B{"검증"}
+  B -- 통과 --> C["처리"]
+  B -- 실패 --> D["반려"]
       </div>
     </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-  <!-- 5. 코드/CLI 하이라이트 예시 -->
+  <!-- 11. 코드 / CLI (highlight.js) -->
   <section class="slide">
-    <h2 class="section-title">[설정/실행 예시]</h2>
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[실행 방법]</h2></div>
+    <p class="lead">[어디서, 언제 실행하는지 한 줄]</p>
     <div class="code-card">
-      <div class="code-label">bash</div>
+      <div class="code-label">[명령 프롬프트 — 소스 폴더에서 실행]</div>
       <pre><code class="language-bash">npm install
 npm run build</code></pre>
     </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-  <!-- 6. 출처 -->
+  <!-- 12. 강조 문장 (덱에서 한 장만) -->
+  <section class="slide slide--statement">
+    <p class="eyebrow">[주의 · 대상]</p>
+    <h2 class="statement-title">[기억해야 할 한 문장]</h2>
+    <p>[왜 그런지 두세 줄]</p>
+  </section>
+
+  <!-- 13. 두 칸 비교 -->
   <section class="slide">
-    <h2 class="section-title">출처</h2>
-    <div class="ref-list">
-      1. [자료명], [발행처/저자], <a href="https://example.com" target="_blank">https://example.com</a><br>
-      2. [사내 문서명] (내부 자료)
+    <div class="head"><p class="eyebrow">[03 · 챕터명]</p><h2 class="title">[나누는 기준]</h2></div>
+    <div class="compare">
+      <div class="compare-col compare-col--primary">
+        <p class="compare-head">[직접 합니다]</p>
+        <p>[항목]</p><p>[항목]</p><p>[항목]</p><p>[항목]</p>
+      </div>
+      <div class="compare-col compare-col--secondary">
+        <p class="compare-head">[넘깁니다]</p>
+        <p>[항목]</p><p>[항목]</p><p>[항목]</p><p>[항목]</p>
+      </div>
     </div>
+    <div class="fill"></div>
+    <div class="callout"><p class="callout-label">[판단이 어려우면]</p><p>[기본 행동 한 줄]</p></div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-  <!-- 7. 참고자료 -->
+  <!-- 14. 한 장 요약 (8칸까지) -->
   <section class="slide">
-    <h2 class="section-title">참고자료</h2>
-    <div class="ref-list">
-      1. [본문에 직접 인용하지 않았지만 배경지식으로 도움이 되는 자료/용어]<br>
-      2. [관련 개념 링크] — <a href="https://example.com" target="_blank">https://example.com</a>
+    <div class="head"><p class="eyebrow">요약</p><h2 class="title">한 장 요약</h2></div>
+    <div class="recap">
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
+      <div class="recap-item"><p class="recap-key">[상황]</p><p class="recap-val">[할 일]</p></div>
     </div>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
   </section>
 
-</div>
+  <!-- 15. 출처 -->
+  <section class="slide">
+    <div class="head"><p class="eyebrow">부록</p><h2 class="title">출처</h2></div>
+    <ul class="refs">
+      <li><span class="ref-no">01</span><span><b>[근거가 된 주장]</b> — [자료명], [발행처], <a href="https://example.com" target="_blank">https://example.com</a></span></li>
+      <li><span class="ref-no">02</span><span><b>[근거가 된 주장]</b> — [사내 문서명 또는 파일 경로] (내부 자료)</span></li>
+    </ul>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+  <!-- 16. 참고자료 -->
+  <section class="slide">
+    <div class="head"><p class="eyebrow">부록</p><h2 class="title">참고자료</h2></div>
+    <ul class="refs">
+      <li><span class="ref-no">01</span><span><b>[자료명]</b> — [본문에 인용하지 않았지만 이해에 도움 되는 이유]</span></li>
+      <li><span class="ref-no">02</span><span><b>[용어]</b> — [한 줄 정의]</span></li>
+    </ul>
+    <div class="foot"><span class="foot-doc">[문서 제목]</span><span class="foot-page"></span></div>
+  </section>
+
+</div></div>
 
 <!-- mermaid 전체화면 모달 -->
 <div class="diagram-modal" id="diagramModal">
   <div class="modal-inner">
-    <button class="modal-close" id="modalClose">&times;</button>
+    <button class="modal-close" id="modalClose" aria-label="닫기">&times;</button>
     <div id="modalDiagramHost"></div>
   </div>
 </div>
 
-<div class="nav">
-  <button id="prevBtn">◀ 이전</button>
-  <span id="counter">1 / 1</span>
-  <button id="nextBtn">다음 ▶</button>
-</div>
+<nav class="nav" id="nav" aria-label="슬라이드 이동">
+  <button id="prevBtn" type="button">◀ 이전</button>
+  <form id="gotoForm" novalidate style="display:flex;align-items:center;gap:8px;margin:0">
+    <input id="pageInput" type="number" min="1" inputmode="numeric" aria-label="이동할 페이지 번호">
+    <span class="nav-total" id="pageTotal">/ 1</span>
+    <button class="nav-go" type="submit">이동</button>
+  </form>
+  <button id="nextBtn" type="button">다음 ▶</button>
+</nav>
 
 <script>
-  mermaid.initialize({ startOnLoad: true, theme: "default" });
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    themeVariables: {
+      fontFamily: '"Noto Sans KR", sans-serif', fontSize: "24px",
+      primaryColor: "#FCFDFE", primaryBorderColor: "#0B1B2E", primaryTextColor: "#0B1B2E",
+      lineColor: "#0B1B2E", secondaryColor: "#EEF1F5", tertiaryColor: "#F4F6F9"
+    }
+  });
   hljs.highlightAll();
 
-  const slides = Array.from(document.querySelectorAll(".slide"));
-  let idx = 0;
-  const counter = document.getElementById("counter");
-  const progress = document.getElementById("progress");
+  // 1920x1080 캔버스를 창에 맞춘다
+  const stage = document.getElementById("stage");
+  const viewport = document.querySelector(".viewport");
+  function fit(){
+    const s = Math.min(viewport.clientWidth / 1920, viewport.clientHeight / 1080);
+    stage.style.transform = `scale(${s})`;
+  }
+  window.addEventListener("resize", fit);
+  fit();
 
-  function render(){
-    slides.forEach((s,i)=>s.classList.toggle("active", i===idx));
-    counter.textContent = `${idx+1} / ${slides.length}`;
-    progress.style.width = `${((idx+1)/slides.length)*100}%`;
-    document.getElementById("prevBtn").disabled = idx===0;
-    document.getElementById("nextBtn").disabled = idx===slides.length-1;
-  }
-  function go(delta){
-    idx = Math.min(slides.length-1, Math.max(0, idx+delta));
-    render();
-  }
-  document.getElementById("prevBtn").onclick = ()=>go(-1);
-  document.getElementById("nextBtn").onclick = ()=>go(1);
-  window.addEventListener("keydown", e=>{
-    if(["ArrowRight","PageDown"," "].includes(e.key)) go(1);
-    if(["ArrowLeft","PageUp"].includes(e.key)) go(-1);
-    if(e.key==="Home") { idx=0; render(); }
-    if(e.key==="End") { idx=slides.length-1; render(); }
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const total = slides.length;
+  const input = document.getElementById("pageInput");
+  const progress = document.getElementById("progress");
+  document.getElementById("pageTotal").textContent = `/ ${total}`;
+  input.max = total;
+
+  // 푸터 페이지 번호는 자동으로 채운다
+  slides.forEach((s, i) => {
+    const p = s.querySelector(".foot-page");
+    if (p) p.textContent = String(i + 1).padStart(2, "0");
   });
 
-  // 다이어그램 전체화면: 원본 mermaid SVG를 모달로 복제
+  // 범위를 벗어난 번호: 1 미만은 첫 장, 전체보다 크면 마지막 장
+  const clamp = n => Math.min(total, Math.max(1, Number.isFinite(n) ? n : 1));
+
+  // 현재 장 기억: 주소의 #번호(공유·북마크용) + localStorage(주소가 바뀌어도 복원)
+  const storeKey = "slide-page:" + location.pathname;
+  function savePage(n){ try { localStorage.setItem(storeKey, String(n)); } catch (e) {} }
+  function loadPage(){
+    const m = location.hash.match(/^#\/?(\d+)/);
+    if (m) return clamp(parseInt(m[1], 10));
+    try { const v = parseInt(localStorage.getItem(storeKey), 10); if (v) return clamp(v); } catch (e) {}
+    return 1;
+  }
+
+  let idx = 0;
+  function show(i){
+    idx = clamp(i + 1) - 1;
+    slides.forEach((s, k) => s.classList.toggle("active", k === idx));
+    input.value = idx + 1;
+    progress.style.width = `${((idx + 1) / total) * 100}%`;
+    document.getElementById("prevBtn").disabled = idx === 0;
+    document.getElementById("nextBtn").disabled = idx === total - 1;
+    history.replaceState(null, "", `#${idx + 1}`);
+    savePage(idx + 1);
+  }
+  const go = d => show(idx + d);
+
+  // 버튼 이동
+  document.getElementById("prevBtn").onclick = () => go(-1);
+  document.getElementById("nextBtn").onclick = () => go(1);
+  // 번호 입력 이동: [이동] 버튼 또는 Enter
+  document.getElementById("gotoForm").addEventListener("submit", e => {
+    e.preventDefault();
+    show(clamp(parseInt(input.value, 10)) - 1);
+    input.blur();
+  });
+  window.addEventListener("hashchange", () => show(loadPage() - 1));
+  // 키보드: 입력칸에 쓰는 중에는 슬라이드를 넘기지 않는다
+  window.addEventListener("keydown", e => {
+    if (e.target === input) return;
+    if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); go(1); }
+    if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(-1); }
+    if (e.key === "Home") show(0);
+    if (e.key === "End") show(total - 1);
+    if (e.key === "Escape") modal.classList.remove("open");
+  });
+
+  // 다이어그램 전체화면: 렌더링된 SVG를 복제해 모달로 키운다
   const modal = document.getElementById("diagramModal");
   const modalHost = document.getElementById("modalDiagramHost");
-  document.querySelectorAll(".btn-fullscreen").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const target = document.getElementById(btn.dataset.target);
-      const svg = target.querySelector("svg");
+  document.querySelectorAll(".btn-fullscreen").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const svg = document.getElementById(btn.dataset.target).querySelector("svg");
       modalHost.innerHTML = "";
-      if(svg){
+      if (svg) {
         const clone = svg.cloneNode(true);
-        // mermaid가 svg에 style="max-width:XXXpx"를 박아두므로 그것부터 지워야
-        // 전체화면에서 커진다
-        clone.style.maxWidth = "none";
+        clone.style.maxWidth = "none";   // mermaid가 넣은 max-width부터 지워야 커진다
+        clone.style.maxHeight = "none";
         clone.style.width = "80vw";
         clone.style.height = "auto";
         modalHost.appendChild(clone);
@@ -256,10 +582,10 @@ npm run build</code></pre>
       modal.classList.add("open");
     });
   });
-  document.getElementById("modalClose").onclick = ()=>modal.classList.remove("open");
-  modal.addEventListener("click", e=>{ if(e.target===modal) modal.classList.remove("open"); });
+  document.getElementById("modalClose").onclick = () => modal.classList.remove("open");
+  modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
 
-  render();
+  show(loadPage() - 1);
 </script>
 </body>
 </html>
